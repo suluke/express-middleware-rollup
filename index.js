@@ -77,11 +77,12 @@ module.exports = function createExpressRollup(options) {
         log('Rolling up', 'started');
       }
       rollup.rollup(rollupOpts).then(bundle => {
-        if (opts.debug) {
-          log('Rolling up', 'finished');
-        }
         const bundleOpts = Object.assign({}, opts.bundleOpts);
         const bundled = bundle.generate();
+        if (opts.debug) {
+          log('Rolling up', 'finished');
+          console.log(bundled.code);
+        }
         if (opts.debug) {
           log('Writing out', 'started');
         }
@@ -128,6 +129,8 @@ function writeBundle(bundle, dest) {
   let promise = new Promise((resolve, reject) => {
     fs.writeFile(dest, bundle.code, err => {
       if (err) {
+        // TODO
+        console.err(err);
         reject(err);
       } else {
         resolve();
@@ -138,6 +141,8 @@ function writeBundle(bundle, dest) {
     const mapPromise = new Promise((resolve, reject) => {
       fs.writeFile(`${dest}.map`, bundle.map, err => {
         if (err) {
+          // TODO
+          console.err(err);
           reject(err);
         } else {
           resolve();
