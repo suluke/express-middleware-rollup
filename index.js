@@ -25,7 +25,7 @@ const defaults = {
   debug: false
 };
 
-export default function createExpressRollup(options) {
+module.exports = function createExpressRollup(options) {
   const opts = Object.assign({}, defaults);
   Object.assign(opts, options);
   
@@ -68,7 +68,7 @@ export default function createExpressRollup(options) {
     if (needsRebuild()) {
       const rollupOpts = Object.assign({}, opts.rollupOpts);
       rollupOpts.entry = bundlePath;
-    }
+    } else if 
   };
 }
 
