@@ -1,0 +1,23 @@
+{
+  "name": "express-middleware-rollup",
+  "version": "1.0.0",
+  "description": "An express middleware to bundle modules with rollup on demand (but cached)",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@git.tunw.net:d5dev/express-middleware-rollup.git"
+  },
+  "keywords": [
+    "express",
+    "middleware",
+    "rollup"
+  ],
+  "author": "Lukas Böhm",
+  "license": "MIT",
+  "dependencies": {
+    "rollup": "^0.26.2"
+  }
+}
