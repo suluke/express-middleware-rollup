@@ -21,12 +21,18 @@ const defaults = {
                 // written directly into the response
   rollupOpts: {},
   bundleOpts: { format: 'iife' },
-  debug: false
+  debug: false,
+  maxAge: 0
 };
 
 module.exports = function createExpressRollup(options) {
   const opts = Object.assign({}, defaults);
   Object.assign(opts, options);
+  // We're not fancy enough to use recursive option merging (yet), so...
+  opts.rollupOpts = Object.assign({}, defaults.rollupOpts);
+  Object.assign(opts.rollupOpts, options.rollupOpts);
+  opts.bundleOpts = Object.assign({}, defaults.bundleOpts);
+  Object.assign(opts.bundleOpts, options.bundleOpts);
 
   // Source directory (required)
   assert(opts.src, 'rollup middleware requires src directory.');
@@ -67,17 +73,63 @@ module.exports = function createExpressRollup(options) {
     if (needsRebuild()) {
       const rollupOpts = Object.assign({}, opts.rollupOpts);
       rollupOpts.entry = bundlePath;
+      rollup.rollup(rollupOpts).then(bundle => {
+        const bundleOpts = Object.assign({}, opts.bundleOpts);
+        const bundled = bundle.generate();
+        const writePromise = writeBundle(bundled, dest);
+        if (opts.serve === true || opts.serve === 'on-compile') {
+          res.writeHead(200, {
+            'Content-Type': 'text/javascript',
+            'Cache-Control': `max-age=${opts.maxAge}`
+          });
+          res.end(bundled.code);
+        } else {
+          writePromise.then(() => {
+            next();
+          }, err => {
+            throw err;
+          });
+        }
+      }, err => {
+        throw err;
+      });
     } else if (opts.serve === true) {
-      //
-      res.send();
-      return true;
+      // TODO we want to do the serving for the user instead of express' static middleware
+      return next();
     }
     return undefined;
   };
   return middleware;
 };
 
+function writeBundle(bundle, dest) {
+  let promise = new Promise((resolve, reject) => {
+    fs.writeFile(dest, bundle.code, err => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve();
+      }
+    });
+  });
+  if (bundle.map) {
+    const mapPromise = new Promise((resolve, reject) => {
+      fs.writeFile(`${dest}.map`, bundle.map, err => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve();
+        }
+      });
+    });
+    promise = Promise.all([promise, mapPromise]);
+  }
+
+  return promise;
+}
+
 function needsRebuild() {
+  // TODO
   return true;
 }
 
