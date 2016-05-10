@@ -75,6 +75,7 @@ module.exports = function createExpressRollup(options) {
     rollupOpts.entry = bundlePath;
     bundleOpts.dest = jsPath;
     checkNeedsRebuild(jsPath, cache, rollupOpts).then(rebuild => {
+      console.log(rebuild);
       if (rebuild.needed) {
         if (opts.debug) {
           log('Rolling up', 'started');
