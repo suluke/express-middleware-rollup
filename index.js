@@ -74,7 +74,7 @@ module.exports = function createExpressRollup(options) {
 
     rollupOpts.entry = bundlePath;
     bundleOpts.dest = jsPath;
-    checkNeedsRebuild(bundlePath, cache, rollupOpts).then(rebuild => {
+    checkNeedsRebuild(jsPath, cache, rollupOpts).then(rebuild => {
       if (rebuild.needed) {
         if (opts.debug) {
           log('Rolling up', 'started');
@@ -168,19 +168,27 @@ function writeBundle(bundle, dest) {
   return promise;
 }
 
-function checkNeedsRebuild(bundlePath, cache, rollupOpts) {
-  if (!cache[bundlePath]) {
+function allFilesOlder(file, files) {
+  return new Promise((resolve, reject) => {
+    resolve(true);
+  });
+}
+
+function checkNeedsRebuild(jsPath, cache, rollupOpts) {
+  if (!cache[jsPath]) {
     return rollup.rollup(rollupOpts).then(bundle => {
-      console.log(bundle.imports);
-      console.log('=================================');
-      console.log(bundle.modules);
-      return { needed: true, bundle };
+      const dependencies = bundle.modules.map(module => module.id);
+      cache[jsPath] = dependencies;
+      return Promise.all([allFilesOlder(jsPath, dependencies), bundle]);
     }, err => {
+      throw err;
+    }).then(results => ({ needed: results[0], bundle: results[1] }), err => {
       throw err;
     });
   }
-  return new Promise((resolve, reject) => {
-    resolve({ needed: true });
+  return allFilesOlder(jsPath, cache[jsPath])
+  .then(allOlder => ({ needed: allOlder }), err => {
+    throw err;
   });
 }
 
