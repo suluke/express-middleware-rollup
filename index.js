@@ -73,11 +73,23 @@ module.exports = function createExpressRollup(options) {
     if (needsRebuild()) {
       const rollupOpts = Object.assign({}, opts.rollupOpts);
       rollupOpts.entry = bundlePath;
+      if (opts.debug) {
+        log('Rolling up', 'started');
+      }
       rollup.rollup(rollupOpts).then(bundle => {
+        if (opts.debug) {
+          log('Rolling up', 'finished');
+        }
         const bundleOpts = Object.assign({}, opts.bundleOpts);
         const bundled = bundle.generate();
+        if (opts.debug) {
+          log('Writing out', 'started');
+        }
         const writePromise = writeBundle(bundled, dest);
         if (opts.serve === true || opts.serve === 'on-compile') {
+          if (opts.debug) {
+            log('Serving', 'ourselves');
+          }
           res.writeHead(200, {
             'Content-Type': 'text/javascript',
             'Cache-Control': `max-age=${opts.maxAge}`
@@ -85,7 +97,17 @@ module.exports = function createExpressRollup(options) {
           res.end(bundled.code);
         } else {
           writePromise.then(() => {
+            if (opts.debug) {
+              log('Serving', 'by next()');
+            }
             next();
+          }, err => {
+            throw err;
+          });
+        }
+        if (opts.debug) {
+          writePromise.then(() => {
+            log('Writing out', 'finished');
           }, err => {
             throw err;
           });

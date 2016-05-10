@@ -1,0 +1,36 @@
+{
+  "extends": "airbnb/base",
+  "env": {
+    "node": true,
+    "es6": true
+  },
+  "parserOptions": {
+    "ecmaVersion": 6,
+    "sourceType": "module"
+  },
+  "plugins": [
+    "node"
+  ],
+  "rules": {
+    "node/no-missing-import": 2,
+    "node/no-missing-require": 2,
+    "quotes": [2, "single", {"avoidEscape": true, "allowTemplateLiterals": true}],
+    "eqeqeq": 2,
+    "strict": 2,
+    "strict": [0, "global"],
+    "new-cap": [2, {
+      "newIsCap": true,
+      "capIsNew": true,
+      "newIsCapExceptions": [],
+      "capIsNewExceptions": []
+    }],
+    "global-strict": [0, "always"],
+    "no-warning-comments": [1, { "terms": ["todo", "fixme", "urgent", "fix"], "location": "anywhere"}],
+    "no-console": 0,
+    "no-multi-spaces": 0,
+    "comma-dangle": 0,
+    "no-unused-vars": 1,
+    "no-use-before-define": 1,
+    "space-before-function-paren": [2, "never"]
+  }
+}
