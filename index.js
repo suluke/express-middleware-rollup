@@ -74,6 +74,7 @@ module.exports = function createExpressRollup(options) {
     }
     return undefined;
   };
+  return middleware;
 };
 
 function needsRebuild() {
