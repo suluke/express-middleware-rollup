@@ -85,7 +85,7 @@ module.exports = function createExpressRollup(options) {
         if (opts.debug) {
           log('Writing out', 'started');
         }
-        const writePromise = writeBundle(bundled, dest);
+        const writePromise = writeBundle(bundled, jsPath);
         if (opts.serve === true || opts.serve === 'on-compile') {
           if (opts.debug) {
             log('Serving', 'ourselves');
