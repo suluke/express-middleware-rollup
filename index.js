@@ -44,6 +44,8 @@ module.exports = function createExpressRollup(options) {
 
   // Cache for bundles' dependencies list
   const cache = {};
+  const rollupOpts = Object.assign({}, opts.rollupOpts);
+  const bundleOpts = Object.assign({}, opts.bundleOpts);
 
   const middleware = function(req, res, next) {
     if (req.method !== 'GET' && req.method !== 'HEAD') {
@@ -70,67 +72,80 @@ module.exports = function createExpressRollup(options) {
       log('dest', jsPath);
     }
 
-    if (needsRebuild()) {
-      const rollupOpts = Object.assign({}, opts.rollupOpts);
-      rollupOpts.entry = bundlePath;
-      if (opts.debug) {
-        log('Rolling up', 'started');
-      }
-      rollup.rollup(rollupOpts).then(bundle => {
-        const bundleOpts = Object.assign({}, opts.bundleOpts);
-        const bundled = bundle.generate();
+    rollupOpts.entry = bundlePath;
+    bundleOpts.dest = jsPath;
+    checkNeedsRebuild(bundlePath, cache, rollupOpts).then(rebuild => {
+      if (rebuild.needed) {
         if (opts.debug) {
-          log('Rolling up', 'finished');
-          console.log(bundled.code);
+          log('Rolling up', 'started');
         }
-        if (opts.debug) {
-          log('Writing out', 'started');
-        }
-        const writePromise = writeBundle(bundled, jsPath);
-        if (opts.serve === true || opts.serve === 'on-compile') {
-          if (opts.debug) {
-            log('Serving', 'ourselves');
-          }
-          res.writeHead(200, {
-            'Content-Type': 'text/javascript',
-            'Cache-Control': `max-age=${opts.maxAge}`
-          });
-          res.end(bundled.code);
+        // checkNeedsRebuild may need to inspect the bundle, so re-use the
+        // one already available instead of creating a new one
+        if (rebuild.bundle) {
+          processBundle(rebuild.bundle, bundleOpts, res, next, opts);
         } else {
-          writePromise.then(() => {
-            if (opts.debug) {
-              log('Serving', 'by next()');
-            }
-            next();
+          rollup.rollup(rollupOpts).then(bundle => {
+            processBundle(bundle, bundleOpts, res, next, opts);
           }, err => {
             throw err;
           });
         }
-        if (opts.debug) {
-          writePromise.then(() => {
-            log('Writing out', 'finished');
-          }, err => {
-            throw err;
-          });
-        }
-      }, err => {
-        throw err;
-      });
-    } else if (opts.serve === true) {
-      // TODO we want to do the serving for the user instead of express' static middleware
+        return true;
+      } else if (opts.serve === true) {
+        // TODO we want to do the serving for the user instead of express' static middleware
+        return next();
+      }
       return next();
-    }
-    return undefined;
+    }, err => {
+      throw err;
+    });
+    return true;
   };
   return middleware;
 };
+
+function processBundle(bundle, bundleOpts, res, next, opts) {
+  const bundled = bundle.generate(bundleOpts);
+  if (opts.debug) {
+    log('Rolling up', 'finished');
+    console.log(bundled.code);
+  }
+  if (opts.debug) {
+    log('Writing out', 'started');
+  }
+  const writePromise = writeBundle(bundled, bundleOpts.dest);
+  if (opts.serve === true || opts.serve === 'on-compile') {
+    if (opts.debug) {
+      log('Serving', 'ourselves');
+    }
+    res.writeHead(200, {
+      'Content-Type': 'text/javascript',
+      'Cache-Control': `max-age=${opts.maxAge}`
+    });
+    res.end(bundled.code);
+  } else {
+    writePromise.then(() => {
+      if (opts.debug) {
+        log('Serving', 'by next()');
+      }
+      next();
+    }, err => {
+      throw err;
+    });
+  }
+  if (opts.debug) {
+    writePromise.then(() => {
+      log('Writing out', 'finished');
+    }, err => {
+      throw err;
+    });
+  }
+}
 
 function writeBundle(bundle, dest) {
   let promise = new Promise((resolve, reject) => {
     fs.writeFile(dest, bundle.code, err => {
       if (err) {
-        // TODO
-        console.err(err);
         reject(err);
       } else {
         resolve();
@@ -141,8 +156,6 @@ function writeBundle(bundle, dest) {
     const mapPromise = new Promise((resolve, reject) => {
       fs.writeFile(`${dest}.map`, bundle.map, err => {
         if (err) {
-          // TODO
-          console.err(err);
           reject(err);
         } else {
           resolve();
@@ -155,9 +168,20 @@ function writeBundle(bundle, dest) {
   return promise;
 }
 
-function needsRebuild() {
-  // TODO
-  return true;
+function checkNeedsRebuild(bundlePath, cache, rollupOpts) {
+  if (!cache[bundlePath]) {
+    return rollup.rollup(rollupOpts).then(bundle => {
+      console.log(bundle.imports);
+      console.log('=================================');
+      console.log(bundle.modules);
+      return { needed: true, bundle };
+    }, err => {
+      throw err;
+    });
+  }
+  return new Promise((resolve, reject) => {
+    resolve({ needed: true });
+  });
 }
 
 function log(key, val) {
