@@ -4,7 +4,8 @@
   "description": "An express middleware to bundle modules with rollup on demand (but cached)",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "example:basic": "node examples/basic/server.js",
+    "lint": "$(npm bin)/eslint index.js || true"
   },
   "repository": {
     "type": "git",
@@ -24,6 +25,7 @@
     "eslint": "^2.9.0",
     "eslint-config-airbnb": "^9.0.1",
     "eslint-plugin-import": "^1.7.0",
-    "eslint-plugin-node": "^1.2.1"
+    "eslint-plugin-node": "^1.2.1",
+    "express": "^4.13.4"
   }
 }
