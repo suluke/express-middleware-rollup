@@ -5,7 +5,7 @@ const path    = require('path');
 const app = express();
 app.use(rollup({
   src: 'client/js',
-  dest: 'static/js',
+  dest: 'static',
   root: __dirname,
   prefix: '/js'
 }));

@@ -6,11 +6,8 @@ const url     = require('url');
 const dirname = require('path').dirname;
 const join    = require('path').join;
 
-const extRegex = /\.js$/;
-
 const defaults = {
   bundleExtension: '.bundle',
-  extensions: ['.js'],
   src: null,
   dest: null,
   root: process.cwd(),
@@ -21,36 +18,30 @@ const defaults = {
                 // written directly into the response
   rollupOpts: {},
   bundleOpts: { format: 'iife' },
-  debug: false,
+  debug: true,
   maxAge: 0
 };
 
-module.exports = function createExpressRollup(options) {
-  const opts = Object.assign({}, defaults);
-  Object.assign(opts, options);
-  // We're not fancy enough to use recursive option merging (yet), so...
-  opts.rollupOpts = Object.assign({}, defaults.rollupOpts);
-  Object.assign(opts.rollupOpts, options.rollupOpts);
-  opts.bundleOpts = Object.assign({}, defaults.bundleOpts);
-  Object.assign(opts.bundleOpts, options.bundleOpts);
+class ExpressRollup {
+  constructor(opts) {
+    this.opts = opts;
 
-  // Source directory (required)
-  assert(opts.src, 'rollup middleware requires src directory.');
-  const src = opts.src;
-  // Destination directory (source by default)
-  const dest = opts.dest || src;
-  // Optional base path for src and dest
-  const root = opts.root || null;
+    // Cache for bundles' dependencies list
+    this.cache = {};
+  }
 
-  // Cache for bundles' dependencies list
-  const cache = {};
-  const rollupOpts = Object.assign({}, opts.rollupOpts);
-  const bundleOpts = Object.assign({}, opts.bundleOpts);
-
-  const middleware = function(req, res, next) {
+  handle(req, res, next) {
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       return next();
     }
+
+    const opts = this.opts;
+    const src = opts.src;
+    const dest = opts.dest;
+    const root = opts.root;
+    const rollupOpts = Object.assign({}, opts.rollupOpts);
+    const bundleOpts = Object.assign({}, opts.bundleOpts);
+    const extRegex = /\.js$/;
 
     let path = url.parse(req.url).pathname;
     if (opts.prefix && path.indexOf(opts.prefix) === 0) {
@@ -65,7 +56,6 @@ module.exports = function createExpressRollup(options) {
     const bundlePath = join(root, src, path
           .replace(new RegExp(`^${dest}`), '')
           .replace(extRegex, opts.bundleExtension));
-    const bundleDir = dirname(bundlePath);
 
     if (opts.debug) {
       log('source', bundlePath);
@@ -74,7 +64,7 @@ module.exports = function createExpressRollup(options) {
 
     rollupOpts.entry = bundlePath;
     bundleOpts.dest = jsPath;
-    checkNeedsRebuild(jsPath, cache, rollupOpts).then(rebuild => {
+    this.checkNeedsRebuild(jsPath, rollupOpts).then(rebuild => {
       console.log(rebuild);
       if (rebuild.needed) {
         if (opts.debug) {
@@ -83,12 +73,12 @@ module.exports = function createExpressRollup(options) {
         // checkNeedsRebuild may need to inspect the bundle, so re-use the
         // one already available instead of creating a new one
         if (rebuild.bundle) {
-          processBundle(rebuild.bundle, bundleOpts, res, next, opts);
+          this.processBundle(rebuild.bundle, bundleOpts, res, next, opts);
         } else {
           rollup.rollup(rollupOpts).then(bundle => {
-            processBundle(bundle, bundleOpts, res, next, opts);
+            this.processBundle(bundle, bundleOpts, res, next, opts);
           }, err => {
-            throw err;
+            console.err(err);
           });
         }
         return true;
@@ -98,64 +88,54 @@ module.exports = function createExpressRollup(options) {
       }
       return next();
     }, err => {
-      throw err;
+      console.err(err);
     });
     return true;
-  };
-  return middleware;
-};
+  }
 
-function processBundle(bundle, bundleOpts, res, next, opts) {
-  const bundled = bundle.generate(bundleOpts);
-  if (opts.debug) {
-    log('Rolling up', 'finished');
-    console.log(bundled.code);
-  }
-  if (opts.debug) {
-    log('Writing out', 'started');
-  }
-  const writePromise = writeBundle(bundled, bundleOpts.dest);
-  if (opts.serve === true || opts.serve === 'on-compile') {
+  processBundle(bundle, bundleOpts, res, next, opts) {
+    const bundled = bundle.generate(bundleOpts);
     if (opts.debug) {
-      log('Serving', 'ourselves');
+      log('Rolling up', 'finished');
+      console.log(bundled.code);
     }
-    res.writeHead(200, {
-      'Content-Type': 'text/javascript',
-      'Cache-Control': `max-age=${opts.maxAge}`
-    });
-    res.end(bundled.code);
-  } else {
-    writePromise.then(() => {
+    if (opts.debug) {
+      log('Writing out', 'started');
+    }
+    const writePromise = this.writeBundle(bundled, bundleOpts.dest);
+    if (opts.serve === true || opts.serve === 'on-compile') {
       if (opts.debug) {
-        log('Serving', 'by next()');
+        log('Serving', 'ourselves');
       }
-      next();
-    }, err => {
-      throw err;
-    });
+      res.writeHead(200, {
+        'Content-Type': 'text/javascript',
+        'Cache-Control': `max-age=${opts.maxAge}`
+      });
+      res.end(bundled.code);
+    } else {
+      writePromise.then(() => {
+        if (opts.debug) {
+          log('Serving', 'by next()');
+        }
+        next();
+      }, err => {
+        console.err(err);
+      });
+    }
+    if (opts.debug) {
+      writePromise.then(() => {
+        log('Writing out', 'finished');
+      }, err => {
+        console.err(err);
+      });
+    }
   }
-  if (opts.debug) {
-    writePromise.then(() => {
-      log('Writing out', 'finished');
-    }, err => {
-      throw err;
-    });
-  }
-}
 
-function writeBundle(bundle, dest) {
-  let promise = new Promise((resolve, reject) => {
-    fs.writeFile(dest, bundle.code, err => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve();
-      }
-    });
-  });
-  if (bundle.map) {
-    const mapPromise = new Promise((resolve, reject) => {
-      fs.writeFile(`${dest}.map`, bundle.map, err => {
+  writeBundle(bundle, dest) {
+    const destDir = dirname(dest);
+    // TODO test if destDir exists and if not either warn or create
+    let promise = new Promise((resolve, reject) => {
+      fs.writeFile(dest, bundle.code, err => {
         if (err) {
           reject(err);
         } else {
@@ -163,35 +143,80 @@ function writeBundle(bundle, dest) {
         }
       });
     });
-    promise = Promise.all([promise, mapPromise]);
+    if (bundle.map) {
+      const mapPromise = new Promise((resolve, reject) => {
+        fs.writeFile(`${dest}.map`, bundle.map, err => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve();
+          }
+        });
+      });
+      promise = Promise.all([promise, mapPromise]);
+    }
+
+    return promise;
   }
 
-  return promise;
-}
-
-function allFilesOlder(file, files) {
-  return new Promise((resolve, reject) => {
-    resolve(true);
-  });
-}
-
-function checkNeedsRebuild(jsPath, cache, rollupOpts) {
-  if (!cache[jsPath]) {
-    return rollup.rollup(rollupOpts).then(bundle => {
-      const dependencies = bundle.modules.map(module => module.id);
-      cache[jsPath] = dependencies;
-      return Promise.all([allFilesOlder(jsPath, dependencies), bundle]);
-    }, err => {
-      throw err;
-    }).then(results => ({ needed: results[0], bundle: results[1] }), err => {
-      throw err;
+  allFilesOlder(file, files) {
+    // TODO
+    return new Promise((resolve, reject) => {
+      resolve(true);
     });
   }
-  return allFilesOlder(jsPath, cache[jsPath])
-  .then(allOlder => ({ needed: allOlder }), err => {
-    throw err;
-  });
+
+  checkNeedsRebuild(jsPath, rollupOpts) {
+    const testExists = new Promise((resolve, reject) => {
+      fs.access(jsPath, fs.F_OK, (err) => {
+        if (err) { reject(err); } else { resolve(); }
+      });
+    });
+    const cache = this.cache;
+    if (!cache[jsPath]) {
+      console.log('Cache miss');
+      return testExists
+      .then(() => rollup.rollup(rollupOpts), () => false) // it does not exist, so we MUST rebuild
+      .then(bundle => {
+        if (bundle === false) {
+          return Promise.all([true, false]);
+        }
+        console.log('Loaded bundle');
+        const dependencies = bundle.modules.map(module => module.id);
+        cache[jsPath] = dependencies;
+        return Promise.all([this.allFilesOlder(jsPath, dependencies), bundle]);
+      })
+      .then(results => ({ needed: results[0], bundle: results[1] }))
+      .catch(err => {
+        console.err(err);
+      });
+    }
+    return testExists
+    .then(() => this.allFilesOlder(jsPath, cache[jsPath]))
+    .then(allOlder => ({ needed: allOlder }), err => {
+      console.err(err);
+    });
+  }
 }
+
+module.exports = function createExpressRollup(options) {
+  const opts = Object.assign({}, defaults);
+  Object.assign(opts, options);
+  // We're not fancy enough to use recursive option merging (yet), so...
+  opts.rollupOpts = Object.assign({}, defaults.rollupOpts);
+  Object.assign(opts.rollupOpts, options.rollupOpts);
+  opts.bundleOpts = Object.assign({}, defaults.bundleOpts);
+  Object.assign(opts.bundleOpts, options.bundleOpts);
+
+  // Source directory (required)
+  assert(opts.src, 'rollup middleware requires src directory.');
+  // Destination directory (source by default)
+  opts.dest = opts.dest || opts.src;
+
+  const expressRollup = new ExpressRollup(opts);
+  const middleware = (...args) => expressRollup.handle(...args);
+  return middleware;
+};
 
 function log(key, val) {
   console.error('  \x1B[90m%s:\x1B[0m \x1B[36m%s\x1B[0m', key, val);

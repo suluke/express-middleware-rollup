@@ -14,7 +14,9 @@ Assuming a directory setup like the following of your project:
 │   └── js
 │       ├── main.bundle
 │       └── test.js
-└── server.js
+├── server.js
+└── static
+    └── index.html
 ```
 In your `server.js` write the following:
 ```
@@ -25,14 +27,14 @@ const path    = require('path');
 const app = express();
 app.use(rollup({
   src: 'client/js',
-  dest: 'static/js',
+  dest: 'static',
   root: __dirname,
   prefix: '/js'
 }));
 app.use(express.static(path.join(__dirname, 'static')));
 app.listen(3000);
 ```
-Now, if you request `localhost:3000/js/main.js`, the middleware will automatically bundle `client/js/main.bundle` using rollup into a file that is ready to be served by `express.static` middleware.
+Now, if you request `localhost:3000/main.js`, the middleware will automatically bundle `client/js/main.bundle` using rollup into a file that is ready to be served by `express.static` middleware.
 You can see this in action by looking into the [basic example](examples/basic)
 
 ## Options
