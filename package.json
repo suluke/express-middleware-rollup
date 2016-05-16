@@ -1,6 +1,6 @@
 {
   "name": "express-middleware-rollup",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "An express middleware to bundle modules with rollup on demand (but cached)",
   "main": "index.js",
   "scripts": {
