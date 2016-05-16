@@ -6,6 +6,20 @@ const url     = require('url');
 const dirname = require('path').dirname;
 const join    = require('path').join;
 
+function log(key, val) {
+  if (!val) {
+    console.error('  \x1B[0m\x1B[36m%s\x1B[0m', key);
+  } else {
+    console.error('  \x1B[90m%s:\x1B[0m \x1B[36m%s\x1B[0m', key, val);
+  }
+}
+
+function assert(condition, message) {
+  if (!condition) {
+    throw new Error(`\x07\x1B[31m${message}\x1B[91m`);
+  }
+}
+
 const defaults = {
   bundleExtension: '.bundle',
   src: null,
@@ -18,7 +32,7 @@ const defaults = {
                 // written directly into the response
   rollupOpts: {},
   bundleOpts: { format: 'iife' },
-  debug: true,
+  debug: false,
   maxAge: 0
 };
 
@@ -65,9 +79,9 @@ class ExpressRollup {
     rollupOpts.entry = bundlePath;
     bundleOpts.dest = jsPath;
     this.checkNeedsRebuild(jsPath, rollupOpts).then(rebuild => {
-      console.log(rebuild);
       if (rebuild.needed) {
         if (opts.debug) {
+          log('Needs rebuild', 'true');
           log('Rolling up', 'started');
         }
         // checkNeedsRebuild may need to inspect the bundle, so re-use the
@@ -78,17 +92,21 @@ class ExpressRollup {
           rollup.rollup(rollupOpts).then(bundle => {
             this.processBundle(bundle, bundleOpts, res, next, opts);
           }, err => {
-            console.err(err);
+            console.error(err);
           });
         }
         return true;
       } else if (opts.serve === true) {
         // TODO we want to do the serving for the user instead of express' static middleware
-        return next();
+        console.log('Directly serving the file is not supported by ' +
+          'express-middleware-rollup as of now. PRs welcome');
+      }
+      if (this.opts.debug) {
+        log('Needs rebuild', 'false');
       }
       return next();
     }, err => {
-      console.err(err);
+      console.error(err);
     });
     return true;
   }
@@ -97,12 +115,11 @@ class ExpressRollup {
     const bundled = bundle.generate(bundleOpts);
     if (opts.debug) {
       log('Rolling up', 'finished');
-      console.log(bundled.code);
     }
+    const writePromise = this.writeBundle(bundled, bundleOpts.dest);
     if (opts.debug) {
       log('Writing out', 'started');
     }
-    const writePromise = this.writeBundle(bundled, bundleOpts.dest);
     if (opts.serve === true || opts.serve === 'on-compile') {
       if (opts.debug) {
         log('Serving', 'ourselves');
@@ -118,24 +135,33 @@ class ExpressRollup {
           log('Serving', 'by next()');
         }
         next();
-      }, err => {
-        console.err(err);
-      });
+      } /* Error case for this is handled below */);
     }
     if (opts.debug) {
       writePromise.then(() => {
         log('Writing out', 'finished');
       }, err => {
-        console.err(err);
+        console.error(err);
+        // Hope, that maybe another middleware can handle things
+        next();
       });
     }
   }
 
   writeBundle(bundle, dest) {
-    const destDir = dirname(dest);
-    // TODO test if destDir exists and if not either warn or create
-    let promise = new Promise((resolve, reject) => {
-      fs.writeFile(dest, bundle.code, err => {
+    const dirExists = new Promise((resolve, reject) => {
+      fs.stat(dirname(dest), (err, stats) => {
+        if (err) {
+          reject('Directory to write to does not exist');
+        } else if (!stats.isDirectory()) {
+          reject('Directory to write to does not exist (not a directory)');
+        } else {
+          resolve();
+        }
+      });
+    });
+    const writeFile = (path, data) => new Promise((resolve, reject) => {
+      fs.writeFile(path, data, err => {
         if (err) {
           reject(err);
         } else {
@@ -143,26 +169,47 @@ class ExpressRollup {
         }
       });
     });
-    if (bundle.map) {
-      const mapPromise = new Promise((resolve, reject) => {
-        fs.writeFile(`${dest}.map`, bundle.map, err => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve();
-          }
-        });
-      });
-      promise = Promise.all([promise, mapPromise]);
-    }
 
-    return promise;
+    return dirExists.then(() => {
+      let promise = writeFile(dest, bundle.code);
+      if (bundle.map) {
+        const mapPromise = writeFile(`${dest}.map`, bundle.map);
+        promise = Promise.all([promise, mapPromise]);
+      }
+      return promise;
+    }, err => { throw err; });
   }
 
   allFilesOlder(file, files) {
-    // TODO
-    return new Promise((resolve, reject) => {
-      resolve(true);
+    const stat = path => new Promise((resolve, reject) => {
+      fs.stat(path, (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      });
+    });
+    const statsPromises = [stat(file)];
+    for (let i = 0; i < files.length; ++i) {
+      statsPromises.push(stat(files[i]));
+    }
+    return Promise.all(statsPromises).then(stats => {
+      const fileStat = stats[0];
+      if (this.opts.debug) {
+        log('Stats loaded', `${stats.length - 1} dependencies`);
+      }
+      for (let i = 1; i < stats.length; ++i) {
+        if (fileStat.mtime.valueOf() <= stats[i].mtime.valueOf()) {
+          if (this.opts.debug) {
+            log('File is newer', files[i - 1]);
+          }
+          return false;
+        }
+      }
+      return true;
+    }, err => {
+      throw err;
     });
   }
 
@@ -174,27 +221,34 @@ class ExpressRollup {
     });
     const cache = this.cache;
     if (!cache[jsPath]) {
-      console.log('Cache miss');
+      if (this.opts.debug) {
+        log('Cache miss');
+      }
       return testExists
-      .then(() => rollup.rollup(rollupOpts), () => false) // it does not exist, so we MUST rebuild
-      .then(bundle => {
-        if (bundle === false) {
-          return Promise.all([true, false]);
+      .then(() => ({ exists: true, bundle: rollup.rollup(rollupOpts) }), () => ({ exists: false }))
+      .then(res => {
+        if (res.exists === false) {
+          // it does not exist, so we MUST rebuild (allFilesOlder = false)
+          return Promise.all([false, false]);
         }
-        console.log('Loaded bundle');
-        const dependencies = bundle.modules.map(module => module.id);
-        cache[jsPath] = dependencies;
-        return Promise.all([this.allFilesOlder(jsPath, dependencies), bundle]);
+        return res.bundle.then(bundle => {
+          if (this.opts.debug) {
+            log('Bundle loaded');
+          }
+          const dependencies = bundle.modules.map(module => module.id);
+          cache[jsPath] = dependencies;
+          return Promise.all([this.allFilesOlder(jsPath, dependencies), bundle]);
+        }, err => { throw err; });
       })
-      .then(results => ({ needed: results[0], bundle: results[1] }))
+      .then(results => ({ needed: !results[0], bundle: results[1] }))
       .catch(err => {
-        console.err(err);
+        console.error(err);
       });
     }
     return testExists
     .then(() => this.allFilesOlder(jsPath, cache[jsPath]))
-    .then(allOlder => ({ needed: allOlder }), err => {
-      console.err(err);
+    .then(allOlder => ({ needed: !allOlder }), err => {
+      console.error(err);
     });
   }
 }
@@ -217,13 +271,3 @@ module.exports = function createExpressRollup(options) {
   const middleware = (...args) => expressRollup.handle(...args);
   return middleware;
 };
-
-function log(key, val) {
-  console.error('  \x1B[90m%s:\x1B[0m \x1B[36m%s\x1B[0m', key, val);
-}
-
-function assert(condition, message) {
-  if (!condition) {
-    throw new Error(`\x07\x1B[31m${message}\x1B[91m`);
-  }
-}
