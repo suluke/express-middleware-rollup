@@ -9,15 +9,25 @@
   },
   "repository": {
     "type": "git",
-    "url": "git@git.tunw.net:d5dev/express-middleware-rollup.git"
+    "url": "https://github.com/suluke/express-middleware-rollup.git"
   },
+  "bugs": "https://github.com/suluke/express-middleware-rollup/issues",
+  "homepage": "https://github.com/suluke/express-middleware-rollup",
   "keywords": [
     "express",
     "middleware",
     "rollup"
   ],
   "author": "Lukas Böhm",
-  "license": "MIT",
+  "licenses": [
+    {
+      "type": "MIT",
+      "url": "https://github.com/suluke/express-middleware-rollup/blob/master/LICENSE"
+    }
+  ],
+  "engines": {
+    "node": ">=5.10.1"
+  },
   "dependencies": {
     "rollup": "^0.26.2"
   },
@@ -27,5 +37,8 @@
     "eslint-plugin-import": "^1.7.0",
     "eslint-plugin-node": "^1.2.1",
     "express": "^4.13.4"
+  },
+  "directories": {
+    "example": "examples"
   }
 }
