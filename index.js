@@ -111,9 +111,6 @@ class ExpressRollup {
           });
         return true;
       }
-      if (this.opts.debug) {
-        log('Needs rebuild', 'false');
-      }
       return next();
     }, err => {
       console.error(err);
