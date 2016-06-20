@@ -97,9 +97,19 @@ class ExpressRollup {
         }
         return true;
       } else if (opts.serve === true) {
-        // TODO we want to do the serving for the user instead of express' static middleware
-        console.log('Directly serving the file is not supported by ' +
-          'express-middleware-rollup as of now. PRs welcome');
+        /** serves js code from cache by ourselves */
+        res.status(200)
+          .type('javascript')
+          .set('Cache-Control', `max-age=${opts.maxAge}`)
+          .sendFile(jsPath, err => {
+            if (err) {
+              console.error(err);
+              res.status(err.status).end();
+            } else if (opts.debug) {
+              log('Serving', 'ourselves');
+            }
+          });
+        return true;
       }
       if (this.opts.debug) {
         log('Needs rebuild', 'false');
@@ -121,14 +131,14 @@ class ExpressRollup {
       log('Writing out', 'started');
     }
     if (opts.serve === true || opts.serve === 'on-compile') {
+      /** serves js code by ourselves */
       if (opts.debug) {
         log('Serving', 'ourselves');
       }
-      res.writeHead(200, {
-        'Content-Type': 'text/javascript',
-        'Cache-Control': `max-age=${opts.maxAge}`
-      });
-      res.end(bundled.code);
+      res.status(200)
+        .type('javascript')
+        .set('Cache-Control', `max-age=${opts.maxAge}`)
+        .send(bundled.code);
     } else {
       writePromise.then(() => {
         if (opts.debug) {
