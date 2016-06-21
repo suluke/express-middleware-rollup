@@ -1,7 +1,7 @@
 'use strict';
 
 const rollup  = require('rollup');
-const fs      = require('fs');
+const fsp     = require('fs-promise');
 const url     = require('url');
 const dirname = require('path').dirname;
 const join    = require('path').join;
@@ -156,31 +156,16 @@ class ExpressRollup {
   }
 
   writeBundle(bundle, dest) {
-    const dirExists = new Promise((resolve, reject) => {
-      fs.stat(dirname(dest), (err, stats) => {
-        if (err) {
-          reject('Directory to write to does not exist');
-        } else if (!stats.isDirectory()) {
-          reject('Directory to write to does not exist (not a directory)');
-        } else {
-          resolve();
-        }
-      });
-    });
-    const writeFile = (path, data) => new Promise((resolve, reject) => {
-      fs.writeFile(path, data, err => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve();
-        }
-      });
-    });
+    const dirExists = fsp.stat(dirname(dest))
+      .catch(() => Promise.reject('Directory to write to does not exist'))
+      .then(stats => (!stats.isDirectory()
+        ? Promise.reject('Directory to write to does not exist (not a directory)')
+        : Promise.resolve()));
 
     return dirExists.then(() => {
-      let promise = writeFile(dest, bundle.code);
+      let promise = fsp.writeFile(dest, bundle.code);
       if (bundle.map) {
-        const mapPromise = writeFile(`${dest}.map`, bundle.map);
+        const mapPromise = fsp.writeFile(`${dest}.map`, bundle.map);
         promise = Promise.all([promise, mapPromise]);
       }
       return promise;
@@ -188,19 +173,7 @@ class ExpressRollup {
   }
 
   allFilesOlder(file, files) {
-    const stat = path => new Promise((resolve, reject) => {
-      fs.stat(path, (err, result) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(result);
-        }
-      });
-    });
-    const statsPromises = [stat(file)];
-    for (let i = 0; i < files.length; ++i) {
-      statsPromises.push(stat(files[i]));
-    }
+    const statsPromises = [file].concat(files).map(f => fsp.stat(f));
     return Promise.all(statsPromises).then(stats => {
       const fileStat = stats[0];
       if (this.opts.debug) {
@@ -221,11 +194,7 @@ class ExpressRollup {
   }
 
   checkNeedsRebuild(jsPath, rollupOpts) {
-    const testExists = new Promise((resolve, reject) => {
-      fs.access(jsPath, fs.F_OK, (err) => {
-        if (err) { reject(err); } else { resolve(); }
-      });
-    });
+    const testExists = fsp.access(jsPath, fsp.F_OK);
     const cache = this.cache;
     if (!cache[jsPath]) {
       if (this.opts.debug) {
