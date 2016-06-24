@@ -159,12 +159,14 @@ class ExpressRollup {
   writeBundle(bundle, dest, opts) {
     const dirPath = dirname(dest);
     const dirExists = fsp.stat(dirPath)
-      .then(stats => (!stats.isDirectory()
-        ? Promise.reject('Directory to write to does not exist (not a directory)')
-        : Promise.resolve()))
       .catch(() => fsp.mkdirs(dirPath).then(() => {
         if (opts.debug) { log('Direcotry created', dirPath); }
-      }));
+      }))
+      .then(stats => {
+        if (!stats.isDirectory()) {
+          throw new Error('Directory to write to does not exist (not a directory)');
+        }
+      });
 
     return dirExists.then(() => {
       let promise = fsp.writeFile(dest, bundle.code);
