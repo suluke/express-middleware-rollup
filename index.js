@@ -21,6 +21,7 @@ function assert(condition, message) {
 }
 
 const defaults = {
+  mode: 'compile', // or 'polyfill'
   bundleExtension: '.bundle',
   src: null,
   dest: null,
@@ -240,8 +241,19 @@ module.exports = function createExpressRollup(options) {
 
   // Source directory (required)
   assert(opts.src, 'rollup middleware requires src directory.');
-  // Destination directory (source by default)
-  opts.dest = opts.dest || opts.src;
+
+  if (options.mode == 'polyfill') {
+    // some values will be overwritten when mode='polyfill'
+    Object.assign(opts, {
+      serve: true,
+      bundleExtension: '.js',
+      dest: opts.cache || opts.dest || 'cache'
+    });
+    delete opts.cache;
+  } else {
+    // Destination directory (source by default)
+    opts.dest = opts.dest || opts.src;
+  }
 
   const expressRollup = new ExpressRollup(opts);
   const middleware = (...args) => expressRollup.handle(...args);
