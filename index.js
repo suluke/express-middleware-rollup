@@ -124,7 +124,7 @@ class ExpressRollup {
     if (opts.debug) {
       log('Rolling up', 'finished');
     }
-    const writePromise = this.writeBundle(bundled, bundleOpts.dest);
+    const writePromise = this.writeBundle(bundled, bundleOpts.dest, opts);
     if (opts.debug) {
       log('Writing out', 'started');
     }
@@ -156,12 +156,15 @@ class ExpressRollup {
     }
   }
 
-  writeBundle(bundle, dest) {
-    const dirExists = fsp.stat(dirname(dest))
-      .catch(() => Promise.reject('Directory to write to does not exist'))
+  writeBundle(bundle, dest, opts) {
+    const dirPath = dirname(dest);
+    const dirExists = fsp.stat(dirPath)
       .then(stats => (!stats.isDirectory()
         ? Promise.reject('Directory to write to does not exist (not a directory)')
-        : Promise.resolve()));
+        : Promise.resolve()))
+      .catch(() => fsp.mkdirs(dirPath).then(() => {
+        if (opts.debug) { log('Direcotry created', dirPath); }
+      }));
 
     return dirExists.then(() => {
       let promise = fsp.writeFile(dest, bundle.code);
@@ -250,18 +253,6 @@ module.exports = function createExpressRollup(options) {
       dest: opts.cache || opts.dest || 'cache'
     });
     delete opts.cache;
-
-    // creates cache dir if not exists
-    const cacheDir = join(opts.root, opts.dest);
-    fsp.stat(cacheDir)
-      .catch(() => fsp.mkdirs(cacheDir).then(() => {
-        if (opts.debug) { log('Cache dir created', cacheDir); }
-      }))
-      .then(stats => {
-        if (!stats.isDirectory()) {
-          throw new Error(`${opts.dest} needs to be a directory`);
-        }
-      });
   } else {
     // Destination directory (source by default)
     opts.dest = opts.dest || opts.src;
