@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "example:basic": "node examples/basic/server.js",
+    "example:polyfill": "node examples/polyfill/server.js",
     "lint": "$(npm bin)/eslint index.js || true"
   },
   "repository": {
