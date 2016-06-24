@@ -242,7 +242,7 @@ module.exports = function createExpressRollup(options) {
   // Source directory (required)
   assert(opts.src, 'rollup middleware requires src directory.');
 
-  if (options.mode == 'polyfill') {
+  if (options.mode === 'polyfill') {
     // some values will be overwritten when mode='polyfill'
     Object.assign(opts, {
       serve: true,
@@ -259,7 +259,7 @@ module.exports = function createExpressRollup(options) {
       }))
       .then(stats => {
         if (!stats.isDirectory()) {
-          throw new Error(`${ opts.dest } needs to be a directory`);
+          throw new Error(`${opts.dest} needs to be a directory`);
         }
       });
   } else {
