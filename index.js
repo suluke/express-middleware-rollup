@@ -250,6 +250,18 @@ module.exports = function createExpressRollup(options) {
       dest: opts.cache || opts.dest || 'cache'
     });
     delete opts.cache;
+
+    // creates cache dir if not exists
+    const cacheDir = join(opts.root, opts.dest);
+    fsp.stat(cacheDir)
+      .catch(() => fsp.mkdirs(cacheDir).then(() => {
+        if (opts.debug) { log('Cache dir created', cacheDir); }
+      }))
+      .then(stats => {
+        if (!stats.isDirectory()) {
+          throw new Error(`${ opts.dest } needs to be a directory`);
+        }
+      });
   } else {
     // Destination directory (source by default)
     opts.dest = opts.dest || opts.src;
