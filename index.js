@@ -130,6 +130,10 @@ class ExpressRollup {
   }
 
   processBundle(bundle, bundleOpts, res, next, opts) {
+    // after loading the bundle, we first want to make sure the dependency
+    // cache is up-to-date
+    this.cache[bundleOpts.dest] = this.getBundleDependencies(bundle);
+
     const bundled = bundle.generate(bundleOpts);
     this.log('Rolling up', 'finished');
     const writePromise = this.writeBundle(bundled, bundleOpts.dest);
@@ -204,7 +208,7 @@ class ExpressRollup {
         }
         return res.bundle.then(bundle => {
           this.log('Bundle loaded');
-          const dependencies = bundle.modules.map(module => module.id);
+          const dependencies = this.getBundleDependencies(bundle);
           cache[jsPath] = dependencies;
           return Promise.all([this.allFilesOlder(jsPath, dependencies), bundle]);
         }, err => { throw err; });
@@ -219,6 +223,10 @@ class ExpressRollup {
     .then(allOlder => ({ needed: !allOlder }), err => {
       console.error(err);
     });
+  }
+
+  getBundleDependencies(bundle) {
+    return bundle.modules.map(module => module.id);
   }
 }
 
