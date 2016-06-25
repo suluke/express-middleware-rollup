@@ -2,16 +2,23 @@
 
 const rollup  = require('rollup');
 const fsp     = require('fs-promise');
+const fecha   = require('fecha');
 const url     = require('url');
 const dirname = require('path').dirname;
 const join    = require('path').join;
 
+let lastTimeStamp = Date.now();
+
 function log(key, val) {
+  const now = new Date();
+  const time = fecha.format(now, 'hh:mm:ss');
+  const diff = fecha.format(now.getTime() - lastTimeStamp, 'ss.SSS');
   if (!val) {
-    console.error('  \x1B[0m\x1B[36m%s\x1B[0m', key);
+    console.error('\x1B[33m+%s \x1B[34m%s \x1B[36m%s\x1B[0m', diff, time, key);
   } else {
-    console.error('  \x1B[90m%s:\x1B[0m \x1B[36m%s\x1B[0m', key, val);
+    console.error('\x1B[33m+%s \x1B[34m%s \x1B[90m%s: \x1B[36m%s\x1B[0m', diff, time, key, val);
   }
+  lastTimeStamp = now;
 }
 
 function assert(condition, message) {
