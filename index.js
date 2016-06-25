@@ -2,7 +2,11 @@
 
 const rollup  = require('rollup');
 const fsp     = require('fs-promise');
-const fecha   = require('fecha');
+let fecha     = null;
+try {
+  // eslint-disable-next-line global-require, import/no-unresolved, node/no-missing-require
+  fecha = require('fecha');
+} catch (e) { /* empty */ }
 const url     = require('url');
 const dirname = require('path').dirname;
 const join    = require('path').join;
@@ -10,15 +14,19 @@ const join    = require('path').join;
 let lastTimeStamp = Date.now();
 
 function log(key, val) {
-  const now = new Date();
-  const time = fecha.format(now, 'hh:mm:ss');
-  const diff = fecha.format(now.getTime() - lastTimeStamp, 'ss.SSS');
-  if (!val) {
-    console.error('\x1B[33m+%s \x1B[34m%s \x1B[36m%s\x1B[0m', diff, time, key);
-  } else {
-    console.error('\x1B[33m+%s \x1B[34m%s \x1B[90m%s: \x1B[36m%s\x1B[0m', diff, time, key, val);
+  let time = '';
+  let diff = '';
+  if (fecha !== null) {
+    const now = new Date();
+    time = `${fecha.format(now, 'hh:mm:ss')} `;
+    diff = `+${fecha.format(now.getTime() - lastTimeStamp, 'ss.SSS')} `;
+    lastTimeStamp = now;
   }
-  lastTimeStamp = now;
+  if (!val) {
+    console.error('\x1B[33m%s\x1B[34m%s\x1B[36m%s\x1B[0m', diff, time, key);
+  } else {
+    console.error('\x1B[33m%s\x1B[34m%s\x1B[90m%s: \x1B[36m%s\x1B[0m', diff, time, key, val);
+  }
 }
 
 function assert(condition, message) {
