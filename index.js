@@ -18,6 +18,7 @@ function assert(condition, message) {
 }
 
 const defaults = {
+  mode: 'compile',
   bundleExtension: '.bundle',
   src: null,
   dest: null,
@@ -232,6 +233,17 @@ class ExpressRollup {
 
 module.exports = function createExpressRollup(options) {
   const opts = Object.assign({}, defaults);
+  if (options.mode === 'polyfill' || (!options.mode && defaults.mode === 'polyfill')) {
+    if (options.dest || options.serve || options.bundleExtension) {
+      console.warn('Explicitly setting options of compile mode in polyfill mode');
+    }
+    // some default values will be different if mode === 'polyfill'
+    Object.assign(opts, {
+      serve: true,
+      bundleExtension: '.js',
+      dest: options.cache || options.dest || 'cache'
+    });
+  }
   Object.assign(opts, options);
   // We're not fancy enough to use recursive option merging (yet), so...
   opts.rollupOpts = Object.assign({}, defaults.rollupOpts);
