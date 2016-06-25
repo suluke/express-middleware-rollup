@@ -163,7 +163,7 @@ class ExpressRollup {
         if (opts.debug) { log('Direcotry created', dirPath); }
       }))
       .then(stats => {
-        if (!stats.isDirectory()) {
+        if (stats && !stats.isDirectory()) {
           throw new Error('Directory to write to does not exist (not a directory)');
         }
       });
