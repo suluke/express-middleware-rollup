@@ -1,6 +1,8 @@
 # express-middleware-rollup
 Express middleware for [rollup](http://rollupjs.org/)
 
+[![Build Status](https://travis-ci.org/suluke/express-middleware-rollup.svg?branch=master)](https://travis-ci.org/suluke/express-middleware-rollup)
+
 ## Install
 ```
 npm install --save express-middleware-rollup
