@@ -11,24 +11,6 @@ const url     = require('url');
 const dirname = require('path').dirname;
 const join    = require('path').join;
 
-let lastTimeStamp = Date.now();
-
-function log(key, val) {
-  let time = '';
-  let diff = '';
-  if (fecha !== null) {
-    const now = new Date();
-    time = `${fecha.format(now, 'hh:mm:ss')} `;
-    diff = `+${fecha.format(now.getTime() - lastTimeStamp, 'ss.SSS')} `;
-    lastTimeStamp = now;
-  }
-  if (!val) {
-    console.error('\x1B[33m%s\x1B[34m%s\x1B[36m%s\x1B[0m', diff, time, key);
-  } else {
-    console.error('\x1B[33m%s\x1B[34m%s\x1B[90m%s: \x1B[36m%s\x1B[0m', diff, time, key, val);
-  }
-}
-
 function assert(condition, message) {
   if (!condition) {
     throw new Error(`\x07\x1B[31m${message}\x1B[91m`);
@@ -57,6 +39,24 @@ class ExpressRollup {
 
     // Cache for bundles' dependencies list
     this.cache = {};
+    this.lastTimeStamp = Date.now();
+  }
+  log(key, val) {
+    if (this.opts.debug) {
+      let time = '';
+      let diff = '';
+      if (fecha !== null) {
+        const now = new Date();
+        time = `${fecha.format(now, 'hh:mm:ss')} `;
+        diff = `+${fecha.format(now.getTime() - this.lastTimeStamp, 'ss.SSS')} `;
+        this.lastTimeStamp = now;
+      }
+      if (!val) {
+        console.error('\x1B[33m%s\x1B[34m%s\x1B[36m%s\x1B[0m', diff, time, key);
+      } else {
+        console.error('\x1B[33m%s\x1B[34m%s\x1B[90m%s: \x1B[36m%s\x1B[0m', diff, time, key, val);
+      }
+    }
   }
 
   handle(req, res, next) {
@@ -86,19 +86,15 @@ class ExpressRollup {
           .replace(new RegExp(`^${dest}`), '')
           .replace(extRegex, opts.bundleExtension));
 
-    if (opts.debug) {
-      log('source', bundlePath);
-      log('dest', jsPath);
-    }
+    this.log('source', bundlePath);
+    this.log('dest', jsPath);
 
     rollupOpts.entry = bundlePath;
     bundleOpts.dest = jsPath;
     this.checkNeedsRebuild(jsPath, rollupOpts).then(rebuild => {
       if (rebuild.needed) {
-        if (opts.debug) {
-          log('Needs rebuild', 'true');
-          log('Rolling up', 'started');
-        }
+        this.log('Needs rebuild', 'true');
+        this.log('Rolling up', 'started');
         // checkNeedsRebuild may need to inspect the bundle, so re-use the
         // one already available instead of creating a new one
         if (rebuild.bundle) {
@@ -120,8 +116,8 @@ class ExpressRollup {
             if (err) {
               console.error(err);
               res.status(err.status).end();
-            } else if (opts.debug) {
-              log('Serving', 'ourselves');
+            } else {
+              this.log('Serving', 'ourselves');
             }
           });
         return true;
@@ -135,39 +131,29 @@ class ExpressRollup {
 
   processBundle(bundle, bundleOpts, res, next, opts) {
     const bundled = bundle.generate(bundleOpts);
-    if (opts.debug) {
-      log('Rolling up', 'finished');
-    }
+    this.log('Rolling up', 'finished');
     const writePromise = this.writeBundle(bundled, bundleOpts.dest);
-    if (opts.debug) {
-      log('Writing out', 'started');
-    }
+    this.log('Writing out', 'started');
     if (opts.serve === true || opts.serve === 'on-compile') {
       /** serves js code by ourselves */
-      if (opts.debug) {
-        log('Serving', 'ourselves');
-      }
+      this.log('Serving', 'ourselves');
       res.status(200)
         .type('javascript')
         .set('Cache-Control', `max-age=${opts.maxAge}`)
         .send(bundled.code);
     } else {
       writePromise.then(() => {
-        if (opts.debug) {
-          log('Serving', 'by next()');
-        }
+        this.log('Serving', 'by next()');
         next();
       } /* Error case for this is handled below */);
     }
-    if (opts.debug) {
-      writePromise.then(() => {
-        log('Writing out', 'finished');
-      }, err => {
-        console.error(err);
-        // Hope, that maybe another middleware can handle things
-        next();
-      });
-    }
+    writePromise.then(() => {
+      this.log('Writing out', 'finished');
+    }, err => {
+      console.error(err);
+      // Hope, that maybe another middleware can handle things
+      next();
+    });
   }
 
   writeBundle(bundle, dest) {
@@ -191,14 +177,10 @@ class ExpressRollup {
     const statsPromises = [file].concat(files).map(f => fsp.stat(f));
     return Promise.all(statsPromises).then(stats => {
       const fileStat = stats[0];
-      if (this.opts.debug) {
-        log('Stats loaded', `${stats.length - 1} dependencies`);
-      }
+      this.log('Stats loaded', `${stats.length - 1} dependencies`);
       for (let i = 1; i < stats.length; ++i) {
         if (fileStat.mtime.valueOf() <= stats[i].mtime.valueOf()) {
-          if (this.opts.debug) {
-            log('File is newer', files[i - 1]);
-          }
+          this.log('File is newer', files[i - 1]);
           return false;
         }
       }
@@ -212,9 +194,7 @@ class ExpressRollup {
     const testExists = fsp.access(jsPath, fsp.F_OK);
     const cache = this.cache;
     if (!cache[jsPath]) {
-      if (this.opts.debug) {
-        log('Cache miss');
-      }
+      this.log('Cache miss');
       return testExists
       .then(() => ({ exists: true, bundle: rollup.rollup(rollupOpts) }), () => ({ exists: false }))
       .then(res => {
@@ -223,9 +203,7 @@ class ExpressRollup {
           return Promise.all([false, false]);
         }
         return res.bundle.then(bundle => {
-          if (this.opts.debug) {
-            log('Bundle loaded');
-          }
+          this.log('Bundle loaded');
           const dependencies = bundle.modules.map(module => module.id);
           cache[jsPath] = dependencies;
           return Promise.all([this.allFilesOlder(jsPath, dependencies), bundle]);
