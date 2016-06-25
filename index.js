@@ -21,6 +21,7 @@ function assert(condition, message) {
 }
 
 const defaults = {
+  mode: 'compile', // or 'polyfill'
   bundleExtension: '.bundle',
   src: null,
   dest: null,
@@ -123,7 +124,7 @@ class ExpressRollup {
     if (opts.debug) {
       log('Rolling up', 'finished');
     }
-    const writePromise = this.writeBundle(bundled, bundleOpts.dest);
+    const writePromise = this.writeBundle(bundled, bundleOpts.dest, opts);
     if (opts.debug) {
       log('Writing out', 'started');
     }
@@ -155,12 +156,17 @@ class ExpressRollup {
     }
   }
 
-  writeBundle(bundle, dest) {
-    const dirExists = fsp.stat(dirname(dest))
-      .catch(() => Promise.reject('Directory to write to does not exist'))
-      .then(stats => (!stats.isDirectory()
-        ? Promise.reject('Directory to write to does not exist (not a directory)')
-        : Promise.resolve()));
+  writeBundle(bundle, dest, opts) {
+    const dirPath = dirname(dest);
+    const dirExists = fsp.stat(dirPath)
+      .catch(() => fsp.mkdirs(dirPath).then(() => {
+        if (opts.debug) { log('Direcotry created', dirPath); }
+      }))
+      .then(stats => {
+        if (stats && !stats.isDirectory()) {
+          throw new Error('Directory to write to does not exist (not a directory)');
+        }
+      });
 
     return dirExists.then(() => {
       let promise = fsp.writeFile(dest, bundle.code);
@@ -240,8 +246,19 @@ module.exports = function createExpressRollup(options) {
 
   // Source directory (required)
   assert(opts.src, 'rollup middleware requires src directory.');
-  // Destination directory (source by default)
-  opts.dest = opts.dest || opts.src;
+
+  if (options.mode === 'polyfill') {
+    // some values will be overwritten when mode='polyfill'
+    Object.assign(opts, {
+      serve: true,
+      bundleExtension: '.js',
+      dest: opts.cache || opts.dest || 'cache'
+    });
+    delete opts.cache;
+  } else {
+    // Destination directory (source by default)
+    opts.dest = opts.dest || opts.src;
+  }
 
   const expressRollup = new ExpressRollup(opts);
   const middleware = (...args) => expressRollup.handle(...args);
