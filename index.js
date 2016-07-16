@@ -28,6 +28,7 @@ const defaults = {
   serve: false, // or 'on-compile' or true. 'on-compile' has the benefit
                 // that the bundle which is already in memory will be
                 // written directly into the response
+  type: 'javascript',
   rollupOpts: {},
   bundleOpts: { format: 'iife' },
   debug: false,
@@ -111,7 +112,7 @@ class ExpressRollup {
       } else if (opts.serve === true) {
         /** serves js code from cache by ourselves */
         res.status(200)
-          .type('javascript')
+          .type(opts.type)
           .set('Cache-Control', `max-age=${opts.maxAge}`)
           .sendFile(jsPath, err => {
             if (err) {
@@ -143,7 +144,7 @@ class ExpressRollup {
       /** serves js code by ourselves */
       this.log('Serving', 'ourselves');
       res.status(200)
-        .type('javascript')
+        .type(opts.type)
         .set('Cache-Control', `max-age=${opts.maxAge}`)
         .send(bundled.code);
     } else {
