@@ -52,6 +52,7 @@ You can see this in action by looking into the [basic example](examples/basic)
 * `bundleOpts`: (Object, default: `{ format: 'iife' }`)
 * `debug`: (Bool, default: `false`)
 * `maxAge`: (Integer, default: `0`)
+* `type`: (String, default: `javascript`). MIME type of served bundles. Can be anything, e.g. `application/javascript`
 
 ## Troubleshooting
 ### Different module file extensions than `.js`
