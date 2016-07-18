@@ -135,7 +135,6 @@ class ExpressRollup {
     // after loading the bundle, we first want to make sure the dependency
     // cache is up-to-date
     this.cache[bundleOpts.dest] = this.getBundleDependencies(bundle);
-
     const bundled = bundle.generate(bundleOpts);
     this.log('Rolling up', 'finished');
     const writePromise = this.writeBundle(bundled, bundleOpts.dest);
