@@ -1,6 +1,6 @@
 'use strict';
 
-VIRTUAL_DEP_IDS = ['\0helper'];
+const VIRTUAL_DEP_IDS = ['\0helper'];
 
 module.exports = {
   name: 'virtual-dep-injector',
