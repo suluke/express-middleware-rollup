@@ -8,6 +8,7 @@ try {
   fecha = require('fecha');
 } catch (e) { /* empty */ }
 const url     = require('url');
+const path    = require('path');
 const dirname = require('path').dirname;
 const join    = require('path').join;
 
@@ -74,17 +75,17 @@ class ExpressRollup {
     const bundleOpts = Object.assign({}, opts.bundleOpts);
     const extRegex = /\.js$/;
 
-    let path = url.parse(req.url).pathname;
-    if (opts.prefix && path.indexOf(opts.prefix) === 0) {
-      path = path.substring(opts.prefix.length);
+    let pathname = url.parse(req.url).pathname;
+    if (opts.prefix && pathname.indexOf(opts.prefix) === 0) {
+      pathname = pathname.substring(opts.prefix.length);
     }
 
-    if (!extRegex.test(path)) {
+    if (!extRegex.test(pathname)) {
       return next();
     }
 
-    const jsPath = join(root, dest, path.replace(new RegExp(`^${dest}`), ''));
-    const bundlePath = join(root, src, path
+    const jsPath = join(root, dest, pathname.replace(new RegExp(`^${dest}`), ''));
+    const bundlePath = join(root, src, pathname
           .replace(new RegExp(`^${dest}`), '')
           .replace(extRegex, opts.bundleExtension));
 
@@ -227,7 +228,7 @@ class ExpressRollup {
   }
 
   getBundleDependencies(bundle) {
-    return bundle.modules.map(module => module.id);
+    return bundle.modules.map(module => module.id).filter(path.isAbsolute);
   }
 }
 
