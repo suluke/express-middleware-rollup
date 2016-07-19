@@ -1,6 +1,7 @@
 # express-middleware-rollup
 Express middleware for [rollup](http://rollupjs.org/)
 
+![Node version](https://img.shields.io/badge/node-%3E%3D%204.7-yellow.svg)
 [![Build Status](https://travis-ci.org/suluke/express-middleware-rollup.svg?branch=master)](https://travis-ci.org/suluke/express-middleware-rollup)
 
 ## Install
@@ -8,7 +9,7 @@ Express middleware for [rollup](http://rollupjs.org/)
 npm install --save express-middleware-rollup
 ```
 
-## Usage
+## Basic Usage
 Assuming a directory setup like the following of your project:
 ```
 .
@@ -39,20 +40,38 @@ app.listen(3000);
 Now, if you request `localhost:3000/main.js`, the middleware will automatically bundle `client/js/main.bundle` using rollup into a file that is ready to be served by `express.static` middleware.
 You can see this in action by looking into the [basic example](examples/basic)
 
+## Alternative Usage Scenarios
+There are basically two different approaches developers follow which lead them to use this middleware:
+
+1. Differentiate between *source* code (es6) and *production* code (es5). Use the middleware to compile the former to the latter.
+2. Write es6 for the frontend *today*, including modules. Use the middleware as a polyfill until browsers support es6 modules natively.
+
+Both approaches are supported by this middleware.
+But since they are so different from each other, we were not able to come up with a unique set of options to configure both in a sensible way.
+This is why we have the `mode` option:
+Depending on which mode you set (`compile` or `polyfill`), you can customize the middleware's behavior with a different set of options.
+The default mode is `compile`.
+
 ## Options
-* `src`: (String, required)
-* `dest`: (String, default: value of `src`)
-* `root`: (String, default: `process.cwd()`)
+Options which are available in both modes are:
+* `src`: (String, required). Directory where to look for bundle entries
+* `root`: (String, default: `process.cwd()`). Directory which other paths (like `src`) are relative to
+* `rebuild`: (String, default: `'deps-change'`). Strategy used to determine whether to re-run `rollup` if a compiled/cached bundle exists. Can be  `'deps-change'`, `'never'` or `'always'`
+* `rollupOpts`: (Object, default: `{}`). Options that will be passed to [`rollup.rollup`](https://github.com/rollup/rollup/wiki/JavaScript-API#rolluprollup-options-). `entry` is set by the plugin, though.
+* `bundleOpts`: (Object, default: `{ format: 'iife' }`). Options passed to [`bundle.generate`](https://github.com/rollup/rollup/wiki/JavaScript-API#bundlegenerate-options-)
 * `prefix`: (String, default: `null`)
+* `maxAge`: (Integer, default: `0`).
+* `type`: (String, default: `javascript`). MIME type of served bundles. Can be anything, e.g. `application/javascript`
+* `debug`: (Bool, default: `false`)
+
+## Options `compile` Mode
+* `dest`: (String, default: value of `src`)
 * `bundleExtension`: (String, default: `'.bundle'`)
-* `rebuild`: (String, default: `'deps-change'`). Can be  `'deps-change'`, `'never'` or `'always'`
 * `serve`: (Bool|String, default: `false`). Can be `true`, `false` or `'on-compile'`. 
   `'on-compile'` has the benefit that the bundle which is already in memory will be written directly into the response
-* `rollupOpts`: (Object, default: `{}`)
-* `bundleOpts`: (Object, default: `{ format: 'iife' }`)
-* `debug`: (Bool, default: `false`)
-* `maxAge`: (Integer, default: `0`)
-* `type`: (String, default: `javascript`). MIME type of served bundles. Can be anything, e.g. `application/javascript`
+
+## Options `polyfill` Mode
+* `cache`: (String, default: 'cache'). Directory where to store bundles as cache.
 
 ## Troubleshooting
 ### Different module file extensions than `.js`
