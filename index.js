@@ -180,11 +180,17 @@ class ExpressRollup {
   }
 
   allFilesOlder(file, files) {
-    const statsPromises = [file].concat(files).map(f => fsp.stat(f));
+    const statsPromises = [file].concat(files)
+      .map(f => fsp.stat(f).then(stat => stat, () => false));
     return Promise.all(statsPromises).then(stats => {
       const fileStat = stats[0];
+      assert(fileStat, 'File tested for allFilesOlder does not exist?');
       this.log('Stats loaded', `${stats.length - 1} dependencies`);
       for (let i = 1; i < stats.length; ++i) {
+        // return false if a file does not exist (any more)
+        if (stats[i] === false) {
+          return false;
+        }
         if (fileStat.mtime.valueOf() <= stats[i].mtime.valueOf()) {
           this.log('File is newer', files[i - 1]);
           return false;
