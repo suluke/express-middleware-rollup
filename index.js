@@ -258,6 +258,7 @@ module.exports = function createExpressRollup(options) {
   opts.dest = opts.dest || opts.src;
 
   const expressRollup = new ExpressRollup(opts);
-  const middleware = (...args) => expressRollup.handle(...args);
+  // eslint-disable-next-line prefer-rest-params
+  function middleware() { expressRollup.handle.apply(expressRollup, arguments); }
   return middleware;
 };
