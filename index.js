@@ -2,6 +2,7 @@
 
 const rollup  = require('rollup');
 const fsp     = require('fs-promise');
+
 let fecha     = null;
 try {
   // eslint-disable-next-line global-require, import/no-unresolved, node/no-missing-require
@@ -94,7 +95,7 @@ class ExpressRollup {
 
     rollupOpts.entry = bundlePath;
     bundleOpts.dest = jsPath;
-    this.checkNeedsRebuild(jsPath, rollupOpts).then(rebuild => {
+    this.checkNeedsRebuild(jsPath, rollupOpts).then((rebuild) => {
       if (rebuild.needed) {
         this.log('Needs rebuild', 'true');
         this.log('Rolling up', 'started');
@@ -103,9 +104,9 @@ class ExpressRollup {
         if (rebuild.bundle) {
           this.processBundle(rebuild.bundle, bundleOpts, res, next, opts);
         } else {
-          rollup.rollup(rollupOpts).then(bundle => {
+          rollup.rollup(rollupOpts).then((bundle) => {
             this.processBundle(bundle, bundleOpts, res, next, opts);
-          }, err => {
+          }, (err) => {
             console.error(err);
           });
         }
@@ -115,7 +116,7 @@ class ExpressRollup {
         res.status(200)
           .type(opts.type)
           .set('Cache-Control', `max-age=${opts.maxAge}`)
-          .sendFile(jsPath, err => {
+          .sendFile(jsPath, (err) => {
             if (err) {
               console.error(err);
               res.status(err.status).end();
@@ -126,7 +127,7 @@ class ExpressRollup {
         return true;
       }
       return next();
-    }, err => {
+    }, (err) => {
       console.error(err);
     });
     return true;
@@ -135,10 +136,10 @@ class ExpressRollup {
   processBundle(bundle, bundleOpts, res, next, opts) {
     // after loading the bundle, we first want to make sure the dependency
     // cache is up-to-date
-    this.cache[bundleOpts.dest] = this.getBundleDependencies(bundle);
+    this.cache[bundleOpts.dest] = ExpressRollup.getBundleDependencies(bundle);
     const bundled = bundle.generate(bundleOpts);
     this.log('Rolling up', 'finished');
-    const writePromise = this.writeBundle(bundled, bundleOpts.dest);
+    const writePromise = ExpressRollup.writeBundle(bundled, bundleOpts.dest);
     this.log('Writing out', 'started');
     if (opts.serve === true || opts.serve === 'on-compile') {
       /** serves js code by ourselves */
@@ -155,14 +156,14 @@ class ExpressRollup {
     }
     writePromise.then(() => {
       this.log('Writing out', 'finished');
-    }, err => {
+    }, (err) => {
       console.error(err);
       // Hope, that maybe another middleware can handle things
       next();
     });
   }
 
-  writeBundle(bundle, dest) {
+  static writeBundle(bundle, dest) {
     const dirExists = fsp.stat(dirname(dest))
       .catch(() => Promise.reject('Directory to write to does not exist'))
       .then(stats => (!stats.isDirectory()
@@ -176,17 +177,17 @@ class ExpressRollup {
         promise = Promise.all([promise, mapPromise]);
       }
       return promise;
-    }, err => { throw err; });
+    }, (err) => { throw err; });
   }
 
   allFilesOlder(file, files) {
     const statsPromises = [file].concat(files)
       .map(f => fsp.stat(f).then(stat => stat, () => false));
-    return Promise.all(statsPromises).then(stats => {
+    return Promise.all(statsPromises).then((stats) => {
       const fileStat = stats[0];
       assert(fileStat, 'File tested for allFilesOlder does not exist?');
       this.log('Stats loaded', `${stats.length - 1} dependencies`);
-      for (let i = 1; i < stats.length; ++i) {
+      for (let i = 1; i < stats.length; i += 1) {
         // return false if a file does not exist (any more)
         if (stats[i] === false) {
           return false;
@@ -197,7 +198,7 @@ class ExpressRollup {
         }
       }
       return true;
-    }, err => {
+    }, (err) => {
       throw err;
     });
   }
@@ -209,31 +210,31 @@ class ExpressRollup {
       this.log('Cache miss');
       return testExists
       .then(() => ({ exists: true, bundle: rollup.rollup(rollupOpts) }), () => ({ exists: false }))
-      .then(res => {
+      .then((res) => {
         if (res.exists === false) {
           // it does not exist, so we MUST rebuild (allFilesOlder = false)
           return Promise.all([false, false]);
         }
-        return res.bundle.then(bundle => {
+        return res.bundle.then((bundle) => {
           this.log('Bundle loaded');
-          const dependencies = this.getBundleDependencies(bundle);
+          const dependencies = ExpressRollup.getBundleDependencies(bundle);
           cache[jsPath] = dependencies;
           return Promise.all([this.allFilesOlder(jsPath, dependencies), bundle]);
-        }, err => { throw err; });
+        }, (err) => { throw err; });
       })
       .then(results => ({ needed: !results[0], bundle: results[1] }))
-      .catch(err => {
+      .catch((err) => {
         console.error(err);
       });
     }
     return testExists
     .then(() => this.allFilesOlder(jsPath, cache[jsPath]))
-    .then(allOlder => ({ needed: !allOlder }), err => {
+    .then(allOlder => ({ needed: !allOlder }), (err) => {
       console.error(err);
     });
   }
 
-  getBundleDependencies(bundle) {
+  static getBundleDependencies(bundle) {
     return bundle.modules.map(module => module.id).filter(path.isAbsolute);
   }
 }
@@ -264,7 +265,7 @@ module.exports = function createExpressRollup(options) {
   opts.dest = opts.dest || opts.src;
 
   const expressRollup = new ExpressRollup(opts);
-  // eslint-disable-next-line prefer-rest-params
+  // eslint-disable-next-line prefer-rest-params, prefer-spread
   function middleware() { expressRollup.handle.apply(expressRollup, arguments); }
   return middleware;
 };

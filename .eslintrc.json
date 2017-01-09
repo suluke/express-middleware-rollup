@@ -32,6 +32,7 @@
     "no-unused-vars": 1,
     "no-use-before-define": 1,
     "space-before-function-paren": [2, "never"],
-    "no-param-reassign": 1
+    "no-param-reassign": 1,
+    "import/no-extraneous-dependencies": [2, {"optionalDependencies": true}]
   }
 }
