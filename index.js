@@ -10,8 +10,7 @@ try {
 } catch (e) { /* empty */ }
 const url     = require('url');
 const path    = require('path');
-const dirname = require('path').dirname;
-const join    = require('path').join;
+const { dirname, join } = require('path');
 
 function assert(condition, message) {
   if (!condition) {
@@ -27,9 +26,9 @@ const defaults = {
   root: process.cwd(),
   prefix: null,
   rebuild: 'deps-change', // or 'never' or 'always'
-  serve: false, // or 'on-compile' or true. 'on-compile' has the benefit
-                // that the bundle which is already in memory will be
-                // written directly into the response
+  serve: false, /* or 'on-compile' or true. 'on-compile' has the benefit
+                   that the bundle which is already in memory will be
+                   written directly into the response */
   type: 'javascript',
   rollupOpts: {},
   bundleOpts: { format: 'iife' },
@@ -69,15 +68,13 @@ class ExpressRollup {
       return;
     }
 
-    const opts = this.opts;
-    const src = opts.src;
-    const dest = opts.dest;
-    const root = opts.root;
+    const { opts } = this;
+    const { src, dest, root } = opts;
     const rollupOpts = Object.assign({}, opts.rollupOpts);
     const bundleOpts = Object.assign({}, opts.bundleOpts);
     const extRegex = /\.js$/;
 
-    let pathname = url.parse(req.url).pathname;
+    let { pathname } = url.parse(req.url);
     if (opts.prefix && pathname.indexOf(opts.prefix) === 0) {
       pathname = pathname.substring(opts.prefix.length);
     }
@@ -89,8 +86,8 @@ class ExpressRollup {
 
     const jsPath = join(root, dest, pathname.replace(new RegExp(`^${dest}`), ''));
     const bundlePath = join(root, src, pathname
-          .replace(new RegExp(`^${dest}`), '')
-          .replace(extRegex, opts.bundleExtension));
+      .replace(new RegExp(`^${dest}`), '')
+      .replace(extRegex, opts.bundleExtension));
 
     this.log('source', bundlePath);
     this.log('dest', jsPath);
@@ -98,47 +95,47 @@ class ExpressRollup {
     rollupOpts.entry = bundlePath;
     bundleOpts.dest = jsPath;
     fsp.access(bundlePath, fsp.constants.R_OK)
-    .then(() => this.checkNeedsRebuild(jsPath, rollupOpts))
-    .then((rebuild) => {
-      if (rebuild.needed) {
-        this.log('Needs rebuild', 'true');
-        this.log('Rolling up', 'started');
-        // checkNeedsRebuild may need to inspect the bundle, so re-use the
-        // one already available instead of creating a new one
-        if (rebuild.bundle) {
-          this.processBundle(rebuild.bundle, bundleOpts, res, next, opts);
-        } else {
-          rollup.rollup(rollupOpts).then((bundle) => {
-            this.processBundle(bundle, bundleOpts, res, next, opts);
-          }, (err) => {
-            console.error(err);
-          });
-        }
-      } else if (opts.serve === true) {
-        // serve js code from cache by ourselves
-        res.status(200)
-          .type(opts.type)
-          .set('Cache-Control', `max-age=${opts.maxAge}`)
-          .sendFile(jsPath, (err) => {
-            if (err) {
+      .then(() => this.checkNeedsRebuild(jsPath, rollupOpts))
+      .then((rebuild) => {
+        if (rebuild.needed) {
+          this.log('Needs rebuild', 'true');
+          this.log('Rolling up', 'started');
+          // checkNeedsRebuild may need to inspect the bundle, so re-use the
+          // one already available instead of creating a new one
+          if (rebuild.bundle) {
+            this.processBundle(rebuild.bundle, bundleOpts, res, next, opts);
+          } else {
+            rollup.rollup(rollupOpts).then((bundle) => {
+              this.processBundle(bundle, bundleOpts, res, next, opts);
+            }, (err) => {
               console.error(err);
-              res.status(err.status).end();
-            } else {
-              this.log('Serving', 'ourselves');
-            }
-          });
-      } else {
-        // have someone else take care of things
+            });
+          }
+        } else if (opts.serve === true) {
+          // serve js code from cache by ourselves
+          res.status(200)
+            .type(opts.type)
+            .set('Cache-Control', `max-age=${opts.maxAge}`)
+            .sendFile(jsPath, (err) => {
+              if (err) {
+                console.error(err);
+                res.status(err.status).end();
+              } else {
+                this.log('Serving', 'ourselves');
+              }
+            });
+        } else {
+          // have someone else take care of things
+          next();
+        }
+      }, (err) => {
+        if (err.syscall && err.syscall === 'access') {
+          this.log('Bundle file not found. Since you might intend to serve this file statically, this is a silent warning.');
+        } else {
+          console.error(err);
+        }
         next();
-      }
-    }, (err) => {
-      if (err.syscall && err.syscall == 'access') {
-        this.log('Bundle file not found. Since you might intend to serve this file statically, this is a silent warning.');
-      } else {
-        console.error(err);
-      }
-      next();
-    });
+      });
   }
 
   processBundle(bundle, bundleOpts, res, next, opts) {
@@ -173,9 +170,9 @@ class ExpressRollup {
 
   static writeBundle(bundle, dest) {
     const dirExists = fsp.stat(dirname(dest))
-      .catch(() => Promise.reject('Directory to write to does not exist'))
+      .catch(() => Promise.reject(new Error('Directory to write to does not exist')))
       .then(stats => (!stats.isDirectory()
-        ? Promise.reject('Directory to write to does not exist (not a directory)')
+        ? Promise.reject(new Error('Directory to write to does not exist (not a directory)'))
         : Promise.resolve()));
 
     return dirExists.then(() => {
@@ -211,28 +208,31 @@ class ExpressRollup {
 
   checkNeedsRebuild(jsPath, rollupOpts) {
     const testExists = fsp.access(jsPath, fsp.F_OK);
-    const cache = this.cache;
+    const { cache } = this;
     if (!cache[jsPath]) {
       this.log('Cache miss');
       return testExists
-      .then(() => ({ exists: true, bundle: rollup.rollup(rollupOpts) }), () => ({ exists: false }))
-      .then((res) => {
-        if (res.exists === false) {
-          // it does not exist, so we MUST rebuild (allFilesOlder = false)
-          return Promise.all([false, false]);
-        }
-        return res.bundle.then((bundle) => {
-          this.log('Bundle loaded');
-          const dependencies = ExpressRollup.getBundleDependencies(bundle);
-          cache[jsPath] = dependencies;
-          return Promise.all([this.allFilesOlder(jsPath, dependencies), bundle]);
-        }, (err) => { throw err; });
-      })
-      .then(results => ({ needed: !results[0], bundle: results[1] }));
+        .then(
+          () => ({ exists: true, bundle: rollup.rollup(rollupOpts) }),
+          () => ({ exists: false })
+        )
+        .then((res) => {
+          if (res.exists === false) {
+            // it does not exist, so we MUST rebuild (allFilesOlder = false)
+            return Promise.all([false, false]);
+          }
+          return res.bundle.then((bundle) => {
+            this.log('Bundle loaded');
+            const dependencies = ExpressRollup.getBundleDependencies(bundle);
+            cache[jsPath] = dependencies;
+            return Promise.all([this.allFilesOlder(jsPath, dependencies), bundle]);
+          }, (err) => { throw err; });
+        })
+        .then(results => ({ needed: !results[0], bundle: results[1] }));
     }
     return testExists
-    .then(() => this.allFilesOlder(jsPath, cache[jsPath]))
-    .then(allOlder => ({ needed: !allOlder }));
+      .then(() => this.allFilesOlder(jsPath, cache[jsPath]))
+      .then(allOlder => ({ needed: !allOlder }));
   }
 
   static getBundleDependencies(bundle) {
