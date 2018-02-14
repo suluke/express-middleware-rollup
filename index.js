@@ -1,7 +1,7 @@
 'use strict';
 
 const rollup  = require('rollup');
-const fsp     = require('fs-promise');
+const fsp     = require('fs-extra');
 
 let fecha     = null;
 try {
@@ -65,7 +65,8 @@ class ExpressRollup {
 
   handle(req, res, next) {
     if (req.method !== 'GET' && req.method !== 'HEAD') {
-      return next();
+      next();
+      return;
     }
 
     const opts = this.opts;
@@ -82,7 +83,8 @@ class ExpressRollup {
     }
 
     if (!extRegex.test(pathname)) {
-      return next();
+      next();
+      return;
     }
 
     const jsPath = join(root, dest, pathname.replace(new RegExp(`^${dest}`), ''));
@@ -95,7 +97,9 @@ class ExpressRollup {
 
     rollupOpts.entry = bundlePath;
     bundleOpts.dest = jsPath;
-    this.checkNeedsRebuild(jsPath, rollupOpts).then((rebuild) => {
+    fsp.access(bundlePath, fsp.constants.R_OK)
+    .then(() => this.checkNeedsRebuild(jsPath, rollupOpts))
+    .then((rebuild) => {
       if (rebuild.needed) {
         this.log('Needs rebuild', 'true');
         this.log('Rolling up', 'started');
@@ -110,9 +114,8 @@ class ExpressRollup {
             console.error(err);
           });
         }
-        return true;
       } else if (opts.serve === true) {
-        /** serves js code from cache by ourselves */
+        // serve js code from cache by ourselves
         res.status(200)
           .type(opts.type)
           .set('Cache-Control', `max-age=${opts.maxAge}`)
@@ -124,13 +127,18 @@ class ExpressRollup {
               this.log('Serving', 'ourselves');
             }
           });
-        return true;
+      } else {
+        // have someone else take care of things
+        next();
       }
-      return next();
     }, (err) => {
-      console.error(err);
+      if (err.syscall && err.syscall == 'access') {
+        this.log('Bundle file not found. Since you might intend to serve this file statically, this is a silent warning.');
+      } else {
+        console.error(err);
+      }
+      next();
     });
-    return true;
   }
 
   processBundle(bundle, bundleOpts, res, next, opts) {
@@ -177,7 +185,7 @@ class ExpressRollup {
         promise = Promise.all([promise, mapPromise]);
       }
       return promise;
-    }, (err) => { throw err; });
+    });
   }
 
   allFilesOlder(file, files) {
@@ -198,8 +206,6 @@ class ExpressRollup {
         }
       }
       return true;
-    }, (err) => {
-      throw err;
     });
   }
 
@@ -222,16 +228,11 @@ class ExpressRollup {
           return Promise.all([this.allFilesOlder(jsPath, dependencies), bundle]);
         }, (err) => { throw err; });
       })
-      .then(results => ({ needed: !results[0], bundle: results[1] }))
-      .catch((err) => {
-        console.error(err);
-      });
+      .then(results => ({ needed: !results[0], bundle: results[1] }));
     }
     return testExists
     .then(() => this.allFilesOlder(jsPath, cache[jsPath]))
-    .then(allOlder => ({ needed: !allOlder }), (err) => {
-      console.error(err);
-    });
+    .then(allOlder => ({ needed: !allOlder }));
   }
 
   static getBundleDependencies(bundle) {
