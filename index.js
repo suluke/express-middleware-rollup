@@ -92,8 +92,7 @@ class ExpressRollup {
     this.log('source', bundlePath);
     this.log('dest', jsPath);
 
-    rollupOpts.entry = bundlePath;
-    bundleOpts.dest = jsPath;
+    rollupOpts.input = bundlePath;
     fsp.access(bundlePath, fsp.constants.R_OK)
       .then(() => this.checkNeedsRebuild(jsPath, rollupOpts))
       .then((rebuild) => {
@@ -103,10 +102,10 @@ class ExpressRollup {
           // checkNeedsRebuild may need to inspect the bundle, so re-use the
           // one already available instead of creating a new one
           if (rebuild.bundle) {
-            this.processBundle(rebuild.bundle, bundleOpts, res, next, opts);
+            this.processBundle(rebuild.bundle, bundleOpts, jsPath, res, next, opts);
           } else {
             rollup.rollup(rollupOpts).then((bundle) => {
-              this.processBundle(bundle, bundleOpts, res, next, opts);
+              this.processBundle(bundle, bundleOpts, jsPath, res, next, opts);
             }, (err) => {
               console.error(err);
             });
@@ -138,34 +137,36 @@ class ExpressRollup {
       });
   }
 
-  processBundle(bundle, bundleOpts, res, next, opts) {
+  processBundle(bundle, bundleOpts, dest, res, next, opts) {
     // after loading the bundle, we first want to make sure the dependency
     // cache is up-to-date
-    this.cache[bundleOpts.dest] = ExpressRollup.getBundleDependencies(bundle);
-    const bundled = bundle.generate(bundleOpts);
-    this.log('Rolling up', 'finished');
-    const writePromise = ExpressRollup.writeBundle(bundled, bundleOpts.dest);
-    this.log('Writing out', 'started');
-    if (opts.serve === true || opts.serve === 'on-compile') {
-      /** serves js code by ourselves */
-      this.log('Serving', 'ourselves');
-      res.status(200)
-        .type(opts.type)
-        .set('Cache-Control', `max-age=${opts.maxAge}`)
-        .send(bundled.code);
-    } else {
-      writePromise.then(() => {
-        this.log('Serving', 'by next()');
-        next();
-      } /* Error case for this is handled below */);
-    }
-    writePromise.then(() => {
-      this.log('Writing out', 'finished');
-    }, (err) => {
-      console.error(err);
-      // Hope, that maybe another middleware can handle things
-      next();
-    });
+    this.cache[dest] = ExpressRollup.getBundleDependencies(bundle);
+    bundle.generate(bundleOpts)
+      .then((bundled) => {
+        this.log('Rolling up', 'finished');
+        const writePromise = ExpressRollup.writeBundle(bundled, dest);
+        this.log('Writing out', 'started');
+        if (opts.serve === true || opts.serve === 'on-compile') {
+          /** serves js code by ourselves */
+          this.log('Serving', 'ourselves');
+          res.status(200)
+            .type(opts.type)
+            .set('Cache-Control', `max-age=${opts.maxAge}`)
+            .send(bundled.code);
+        } else {
+          writePromise.then(() => {
+            this.log('Serving', 'by next()');
+            next();
+          } /* Error case for this is handled below */);
+        }
+        writePromise.then(() => {
+          this.log('Writing out', 'finished');
+        }, (err) => {
+          console.error(err);
+          // Hope, that maybe another middleware can handle things
+          next();
+        });
+      });
   }
 
   static writeBundle(bundle, dest) {
