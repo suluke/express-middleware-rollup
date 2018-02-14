@@ -2,7 +2,7 @@
 Express middleware for [rollup](http://rollupjs.org/)
 
 [![Npm version](https://badge.fury.io/js/express-middleware-rollup.svg)](https://badge.fury.io/js/express-middleware-rollup)
-![Node version](https://img.shields.io/badge/node-%3E%3D%204.7-yellow.svg)
+![Node version](https://img.shields.io/badge/node-%3E%3D%206.0-yellow.svg)
 [![Build Status](https://travis-ci.org/suluke/express-middleware-rollup.svg?branch=master)](https://travis-ci.org/suluke/express-middleware-rollup)
 ![Dependencies status](https://david-dm.org/suluke/express-middleware-rollup.svg)
 
