@@ -30,7 +30,7 @@
     }
   ],
   "engines": {
-    "node": ">=5.10.1"
+    "node": ">=8.3.0"
   },
   "peerDependencies": {
     "rollup": "^1.22.0"
