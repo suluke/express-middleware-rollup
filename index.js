@@ -44,6 +44,7 @@ class ExpressRollup {
     this.cache = {};
     this.lastTimeStamp = Date.now();
   }
+
   log(key, val) {
     if (this.opts.debug) {
       let time = '';
@@ -70,8 +71,8 @@ class ExpressRollup {
 
     const { opts } = this;
     const { src, dest, root } = opts;
-    const rollupOpts = Object.assign({}, opts.rollupOpts);
-    const bundleOpts = Object.assign({}, opts.bundleOpts);
+    const rollupOpts = Object.assign(...opts.rollupOpts);
+    const bundleOpts = Object.assign(...opts.bundleOpts);
     const extRegex = /\.js$/;
 
     let { pathname } = url.parse(req.url);
@@ -172,7 +173,7 @@ class ExpressRollup {
   static writeBundle(bundle, dest) {
     const dirExists = fsp.stat(dirname(dest))
       .catch(() => Promise.reject(new Error('Directory to write to does not exist')))
-      .then(stats => (!stats.isDirectory()
+      .then((stats) => (!stats.isDirectory()
         ? Promise.reject(new Error('Directory to write to does not exist (not a directory)'))
         : Promise.resolve()));
 
@@ -188,7 +189,7 @@ class ExpressRollup {
 
   allFilesOlder(file, files) {
     const statsPromises = [file].concat(files)
-      .map(f => fsp.stat(f).then(stat => stat, () => false));
+      .map((f) => fsp.stat(f).then((stat) => stat, () => false));
     return Promise.all(statsPromises).then((stats) => {
       const fileStat = stats[0];
       assert(fileStat, 'File tested for allFilesOlder does not exist?');
@@ -229,20 +230,22 @@ class ExpressRollup {
             return Promise.all([this.allFilesOlder(jsPath, dependencies), bundle]);
           }, (err) => { throw err; });
         })
-        .then(results => ({ needed: !results[0], bundle: results[1] }));
+        .then((results) => ({ needed: !results[0], bundle: results[1] }));
     }
     return testExists
       .then(() => this.allFilesOlder(jsPath, cache[jsPath]))
-      .then(allOlder => ({ needed: !allOlder }));
+      .then((allOlder) => ({ needed: !allOlder }));
   }
 
   static getBundleDependencies(bundle) {
-    return bundle.modules.map(module => module.id).filter(path.isAbsolute);
+    return (bundle.modules || bundle.cache.modules).map(
+      (module) => module.id
+    ).filter(path.isAbsolute);
   }
 }
 
 module.exports = function createExpressRollup(options) {
-  const opts = Object.assign({}, defaults);
+  const opts = Object.assign(...defaults);
   if (options.mode === 'polyfill' || (!options.mode && defaults.mode === 'polyfill')) {
     if (options.dest || options.serve || options.bundleExtension) {
       console.warn('Explicitly setting options of compile mode in polyfill mode');
@@ -256,9 +259,9 @@ module.exports = function createExpressRollup(options) {
   }
   Object.assign(opts, options);
   // We're not fancy enough to use recursive option merging (yet), so...
-  opts.rollupOpts = Object.assign({}, defaults.rollupOpts);
+  opts.rollupOpts = Object.assign(...defaults.rollupOpts);
   Object.assign(opts.rollupOpts, options.rollupOpts);
-  opts.bundleOpts = Object.assign({}, defaults.bundleOpts);
+  opts.bundleOpts = Object.assign(...defaults.bundleOpts);
   Object.assign(opts.bundleOpts, options.bundleOpts);
 
   // Source directory (required)
