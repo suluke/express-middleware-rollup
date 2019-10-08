@@ -71,8 +71,8 @@ class ExpressRollup {
 
     const { opts } = this;
     const { src, dest, root } = opts;
-    const rollupOpts = Object.assign(...opts.rollupOpts);
-    const bundleOpts = Object.assign(...opts.bundleOpts);
+    const rollupOpts = Object.assign({}, opts.rollupOpts);
+    const bundleOpts = Object.assign({}, opts.bundleOpts);
     const extRegex = /\.js$/;
 
     let { pathname } = url.parse(req.url);
@@ -245,7 +245,7 @@ class ExpressRollup {
 }
 
 module.exports = function createExpressRollup(options) {
-  const opts = Object.assign(...defaults);
+  const opts = Object.assign({}, defaults);
   if (options.mode === 'polyfill' || (!options.mode && defaults.mode === 'polyfill')) {
     if (options.dest || options.serve || options.bundleExtension) {
       console.warn('Explicitly setting options of compile mode in polyfill mode');
@@ -259,9 +259,9 @@ module.exports = function createExpressRollup(options) {
   }
   Object.assign(opts, options);
   // We're not fancy enough to use recursive option merging (yet), so...
-  opts.rollupOpts = Object.assign(...defaults.rollupOpts);
+  opts.rollupOpts = Object.assign({}, defaults.rollupOpts);
   Object.assign(opts.rollupOpts, options.rollupOpts);
-  opts.bundleOpts = Object.assign(...defaults.bundleOpts);
+  opts.bundleOpts = Object.assign({}, defaults.bundleOpts);
   Object.assign(opts.bundleOpts, options.bundleOpts);
 
   // Source directory (required)
